@@ -1,0 +1,9 @@
+body {
+    margin: 0;
+    border: 2px #eee solid;
+    padding: 10px;
+    text-align: center;
+
+    color: brown;
+    font-family: sans-serif;
+}

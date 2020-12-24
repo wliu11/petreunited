@@ -1,0 +1,43 @@
+{% extends 'base.html' %}
+
+{% block content %}
+
+<h1>{% block title %} Create a New Post {% endblock %}</h1>
+
+<form action="/create" method="post" enctype="multipart/form-data">
+
+    <div class="form-group">
+        <label for="title">Title</label>
+        <input type="text" name="title"
+               placeholder="Post title" class="form-control"
+               value="{{ request.form['title'] }}"/>
+    </div>
+
+    <div class="form-group">
+        <label for="content">Content</label>
+        <textarea name="content" placeholder="Post content"
+                  class="form-control">{{ request.form['content'] }}</textarea>
+    </div>
+
+
+    <div class="form-group">
+        <label>Select image</label>
+        <div class=" custom-file">
+            <input type="file" class="custom-file-input" name="image" id="image" oninput="filesize(this);">
+            <label class="custom-file-label" for="image">Select image..</label>
+            <script>
+
+                function filesize(elem){
+                document.cookie = `filesize=${elem.files[0].size}`
+                }
+
+            </script>
+        </div>
+    </div>
+
+    <div class="form-group">
+        <button type="submit" class="btn btn-primary">Submit</button>
+    </div>
+</form>
+
+{% endblock %}
