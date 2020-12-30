@@ -1,37 +1,15 @@
-import io
-# import os
-#
-# from google.cloud import vision
-#
-# os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = 'ServiceAccountToken.json'
-# client = vision.ImageAnnotatorClient()
-#
-# path = '/Users/liuwendy/petreunited/pic.jpg'
-#
-#
-# image_uri = 'gs://cloud-samples-data/vision/using_curl/shanghai.jpeg'
-#
-# image = vision.Image()
-#
-# image.source.image_uri = image_uri
-#
-# response = client.label_detection(image)
-#
-# print('Labels (and confidence score):')
-# print('=' * 30)
-# for label in response.label_annotations:
-#     print(label.description, '(%.2f%%)' % (label.score*100.))
-
-
 # If `entrypoint` is not defined in app.yaml, App Engine will look for an app
 # called `app` in `main.py`.
 import os
-
+from google.cloud import vision
+import pyrebase
+# import flask_resize
 from flask import Flask, render_template, url_for, request, flash, redirect
 import sqlite3
 from flask_sqlalchemy import SQLAlchemy
 from werkzeug.exceptions import abort
 from werkzeug.utils import secure_filename
+import csv
 
 
 def get_db_connection():
@@ -44,9 +22,30 @@ app = Flask(__name__)
 app.config['SECRET_KEY'] = 'key0'
 app.config['IMAGE_UPLOADS'] = '/Users/liuwendy/petreunited/static/css/img/uploads'
 app.config['ALLOWED_IMAGE_EXTENSIONS'] = ['PNG', 'JPG', 'JPEG']
-app.config['MAX_IMAGE_FILESIZE'] = 0.5 * 1024 * 1024
+app.config['MAX_IMAGE_FILESIZE'] = 1024 * 1024
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///'
+
 db = SQLAlchemy(app)
+
+file = open(r'dog_breeds.csv')
+data_csv = csv.reader(file)
+breeds = list(data_csv)
+
+
+config = {
+    "apiKey": os.environ.get("PUBLIC_KEY"),
+    "authDomain": "pet-reunited-47c0b.firebaseapp.com",
+    "databaseURL": "https://pet-reunited-47c0b-default-rtdb.firebaseio.com/",
+    "projectId": "pet-reunited-47c0b",
+    "storageBucket": "pet-reunited-47c0b.appspot.com",
+    "messagingSenderId": "60196556896",
+    "appId": "1:60196556896:web:4080100f7c37e323ab3305",
+    "measurementId": "G-6Z0YRP2GTY"
+  }
+
+firebase = pyrebase.initialize_app(config)
+storage = firebase.storage()
+firebase_db = firebase.database()
 
 
 class FileContents(db.Model):
@@ -59,7 +58,6 @@ def allowed_image(filename):
     if filename == "" or "." not in filename:
         return False
     extension = filename.rsplit(".", 1)[1]
-    print("extension is '" + str(extension) + "'")
     if extension.upper() in app.config['ALLOWED_IMAGE_EXTENSIONS']:
         return True
     return False
@@ -73,11 +71,17 @@ def allowed_filesize(filesize):
 
 
 @app.route('/')
-def hello():
+def run():
     conn = get_db_connection()
     posts = conn.execute('SELECT * FROM posts').fetchall()
     conn.close()
+
     return render_template('index.html', posts=posts)
+
+
+@app.route('/about')
+def about():
+    return render_template('about.html')
 
 
 @app.route('/upload', methods=['POST', 'GET'])
@@ -102,7 +106,16 @@ def get_post(post_id):
 @app.route('/<int:post_id>')
 def post(post_id):
     post = get_post(post_id)
-    return render_template('post.html', post=post)
+    url = post['image']
+    return render_template('post.html', post=post, url=url)
+
+
+def display_image(post_id):
+    post = get_post(post_id)
+    path = post['image']
+    url = storage.child(path).get_url(None)
+    print("url is ", url)
+    return url
 
 
 @app.route('/create', methods=('GET', 'POST'))
@@ -110,31 +123,52 @@ def create():
     if request.method == 'POST':
         title = request.form['title']
         content = request.form['content']
-        if request.files:
+        image = request.files['image']
 
-            if not allowed_filesize(request.cookies.get('filesize')):
-                return redirect(request.url)
+        filename = image.filename
 
-            image = request.files['image']
-            filename = image.filename
+        if not allowed_filesize(request.cookies.get('filesize')):
+            flash("File size is too large, resizing")
+            return redirect(request.url)
 
-            if allowed_image(filename):
-                safeFilename = secure_filename(filename)
-                image.save(os.path.join(app.config['IMAGE_UPLOADS'], safeFilename))
-            else:
-                flash("Please upload an image of type JPG, JPEG or PNG.")
-                return redirect(request.url)
+        if not allowed_image(filename):
+            flash("Please upload an image of type JPG, JPEG or PNG.")
+            return redirect(request.url)
+
+        safeFilename = secure_filename(filename)
+
+        path = "images/" + safeFilename
+
+        storage.child(path).put(image)
 
         if not title:
-            flash('Title is required!')
+            flash('Please include a brief title')
+        if not content:
+            flash('Please include a brief description')
         else:
             conn = get_db_connection()
-            conn.execute('INSERT INTO posts (title, content) VALUES (?, ?)',
-                         (title, content))
+            url = storage.child(path).get_url(None)
+            conn.execute('INSERT INTO posts (title, content, image) VALUES (?, ?, ?)',
+                         (title, content, url))
             conn.commit()
             conn.close()
-            return redirect(url_for('hello'))
+            url = storage.child(path).get_url(None)
+            results = run_api(url)
+
+            resulting_breed = get_breed(results)
+            return render_template('results.html', results=resulting_breed, url=url)
+
     return render_template('create.html')
+
+
+def get_breed(results):
+    resulting_breed = []
+    print("results were ", results)
+    for result in results:
+        for breed in breeds:
+            if result.upper() == breed[0].upper():
+                resulting_breed.append(breed)
+    return resulting_breed
 
 
 @app.route('/<int:id>/edit', methods=('GET', 'POST'))
@@ -154,7 +188,7 @@ def edit(id):
                          (title, content, id))
             conn.commit()
             conn.close()
-            return redirect(url_for('hello'))
+            return redirect(url_for('run'))
 
     return render_template('edit.html', post=post)
 
@@ -167,7 +201,19 @@ def delete(id):
     conn.commit()
     conn.close()
     flash('"{}" was successfully deleted!'.format(post['title']))
-    return redirect(url_for('hello'))
+    return redirect(url_for('run'))
+
+
+def run_api(url):
+    os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = 'ServiceAccountToken.json'
+    client = vision.ImageAnnotatorClient()
+    image = vision.Image()
+    image.source.image_uri = url
+    response = client.label_detection(image)
+    ret = []
+    for label in response.label_annotations:
+        ret.append(label.description)
+    return ret
 
 
 if __name__ == '__main__':
