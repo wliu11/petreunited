@@ -1,15 +1,19 @@
-# If `entrypoint` is not defined in app.yaml, App Engine will look for an app
-# called `app` in `main.py`.
+import json
 import os
+
+from flask_login import login_user, login_required, current_user, LoginManager, logout_user
 from google.cloud import vision
 import pyrebase
+from user import login
 # import flask_resize
-from flask import Flask, render_template, url_for, request, flash, redirect
+from flask import Flask, render_template, url_for, request, flash, redirect, jsonify, Response
 import sqlite3
 from flask_sqlalchemy import SQLAlchemy
 from werkzeug.exceptions import abort
 from werkzeug.utils import secure_filename
 import csv
+
+from user import UserModel
 
 
 def get_db_connection():
@@ -20,17 +24,16 @@ def get_db_connection():
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'key0'
-app.config['IMAGE_UPLOADS'] = '/Users/liuwendy/petreunited/static/css/img/uploads'
 app.config['ALLOWED_IMAGE_EXTENSIONS'] = ['PNG', 'JPG', 'JPEG']
 app.config['MAX_IMAGE_FILESIZE'] = 1024 * 1024
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///'
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db = SQLAlchemy(app)
 
 file = open(r'dog_breeds.csv')
 data_csv = csv.reader(file)
 breeds = list(data_csv)
-
 
 config = {
     "apiKey": os.environ.get("PUBLIC_KEY"),
@@ -41,7 +44,7 @@ config = {
     "messagingSenderId": "60196556896",
     "appId": "1:60196556896:web:4080100f7c37e323ab3305",
     "measurementId": "G-6Z0YRP2GTY"
-  }
+}
 
 firebase = pyrebase.initialize_app(config)
 storage = firebase.storage()
@@ -119,6 +122,7 @@ def display_image(post_id):
 
 
 @app.route('/create', methods=('GET', 'POST'))
+# @login_required
 def create():
     if request.method == 'POST':
         title = request.form['title']
@@ -128,7 +132,7 @@ def create():
         filename = image.filename
 
         if not allowed_filesize(request.cookies.get('filesize')):
-            flash("File size is too large, resizing")
+            flash("File size is too large")
             return redirect(request.url)
 
         if not allowed_image(filename):
@@ -146,17 +150,29 @@ def create():
         if not content:
             flash('Please include a brief description')
         else:
-            conn = get_db_connection()
-            url = storage.child(path).get_url(None)
-            conn.execute('INSERT INTO posts (title, content, image) VALUES (?, ?, ?)',
-                         (title, content, url))
-            conn.commit()
-            conn.close()
+
             url = storage.child(path).get_url(None)
             results = run_api(url)
 
             resulting_breed = get_breed(results)
-            return render_template('results.html', results=resulting_breed, url=url)
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            url = storage.child(path).get_url(None)
+
+            if len(resulting_breed) == 0:
+                print("no breeds found")
+                cursor.execute('INSERT INTO posts (title, content, image, breed) VALUES (?, ?, ?, ?)',
+                             (title, content, url, "unknown"))
+            else:
+                print("Found breed ")
+                cursor.execute('INSERT INTO posts (title, content, image, breed) VALUES (?, ?, ?, ?)',
+                             (title, content, url, str(resulting_breed[0])))
+
+            post_id = cursor.lastrowid
+            print("post id is ", post_id)
+            conn.commit()
+            conn.close()
+            return render_template('post.html', post=get_post(post_id))
 
     return render_template('create.html')
 
@@ -214,6 +230,7 @@ def run_api(url):
     for label in response.label_annotations:
         ret.append(label.description)
     return ret
+
 
 
 if __name__ == '__main__':

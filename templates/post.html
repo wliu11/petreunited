@@ -1,8 +1,16 @@
 {% extends 'base.html' %}
 
 {% block content %}
-    <h2>{% block title %} {{ post['title'] }} {% endblock %}</h2>
-    <span class="badge badge-primary">{{ post['created'] }}</span>
-    <p>{{ post['content'] }}</p>
-    <td><img src="{{ url }}" width="600"></td>
+
+<h2>{% block title %} {{ post['title'] }} {% endblock %}</h2>
+
+<span class="badge badge-primary">{{ post['created'] }}</span>
+
+<p>{{ post['content'] }}</p>
+
+<td><img src="{{ url }}" width="600"></td>
+
+<p>The predicted dog breed is: {{ post['breed'] }}</p>
+
+
 {% endblock %}
