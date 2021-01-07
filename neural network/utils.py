@@ -24,7 +24,6 @@ class DogDataset(Dataset):
 
         # List of annotations files- contains information such as the bounding box
         self.annotations = [[annot for annot in element] for element in data['annotation_list']]
-
         self.transform = transform
 
         self.data = []
@@ -33,6 +32,10 @@ class DogDataset(Dataset):
             img_name = self.images[idx][0][0]
             img_path = os.path.join("Images" + "/" + img_name)
             image = Image.open(img_path)
+
+            crop = bounding_box(img_name)
+            image = image.crop(crop)
+
             image.load()
             label = self.labels[idx][0]
             self.data.append((image, label))
@@ -49,9 +52,21 @@ class DogDataset(Dataset):
 
     def show_image(self, idx):
         image, label = self.__getitem__(idx)
-        print(image)
         image.show()
-        print(label)
+
+
+def bounding_box(img_name):
+    path = "Annotation/" + img_name[:-4]
+    tree = ET.ElementTree(file=path)
+    root = tree.getroot()
+
+    for elem in root.findall('object/bndbox'):
+        xmin = int(elem.find('xmin').text)
+        ymin = int(elem.find('ymin').text)
+        xmax = int(elem.find('xmax').text)
+        ymax = int(elem.find('ymax').text)
+
+    return xmin, ymin, xmax, ymax
 
 
 if __name__ == '__main__':
@@ -59,29 +74,6 @@ if __name__ == '__main__':
     # for i in range(len(dog_dataset)):
     #     sample = dog_dataset[i]
     dog_dataset.show_image(400)
-
-
-    # dog_dataset.show_image(400)
-
-#
-# annot_file = open(path)
-#
-# tree = ET.ElementTree(file=annot_file)
-# root = tree.getroot()
-
-# print("tag=%s, attrib=%s" % (root.tag, root.attrib))
-#
-# print("-" * 25)
-# print("Iterating using getchildren()")
-# print("-" * 25)
-#
-# for elem in root.findall('object/bndbox'):
-#     xmin = elem.find('xmin').text
-#     ymin = elem.find('ymin').text
-#     xmax = elem.find('xmax').text
-#     ymax = elem.find('ymax').text
-#
-#
 
 
 def load_data(dataset_path, num_workers=0, batch_size=128):
