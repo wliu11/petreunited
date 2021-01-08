@@ -56,6 +56,8 @@ class DogDataset(Dataset):
 
 
 def bounding_box(img_name):
+
+    # Splice out the ".jpg" marker from the end of each image name to get the annotation file
     path = "Annotation/" + img_name[:-4]
     tree = ET.ElementTree(file=path)
     root = tree.getroot()
@@ -73,6 +75,7 @@ if __name__ == '__main__':
     dog_dataset = DogDataset(train_dir='lists/train_list.mat')
     # for i in range(len(dog_dataset)):
     #     sample = dog_dataset[i]
+
     dog_dataset.show_image(400)
 
 
