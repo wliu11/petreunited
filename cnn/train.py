@@ -1,5 +1,5 @@
 import torch
-from models import model_factory, save_model, CNN
+from models import save_model, CNN
 from utils import load_data
 import torch.optim as optim
 from torchvision import transforms
@@ -13,14 +13,6 @@ lr = 1e-3
 
 TRAIN_PATH = 'lists/train_list.mat'
 
-transforms = {
-    transforms.Compose([
-        transforms.RandomCrop(200),
-        transforms.RandomHorizontalFlip(),
-        transforms.ToTensor()
-    ])
-}
-
 
 def train(args):
     train_logger, val_logger = None, None
@@ -29,9 +21,9 @@ def train(args):
         train_logger = tb.SummaryWriter(path.join(args.log_dir, 'train'))
         valid_logger = tb.SummaryWriter(path.join(args.log_dir, 'valid'))
 
-    device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
+    # device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 
-    model = CNN().to(device)
+    model = CNN()
 
     train_data = load_data(TRAIN_PATH)
     optimizer = optim.SGD(model.parameters(), lr=args.learning_rate, momentum=0.9)
@@ -44,24 +36,33 @@ def train(args):
         accuracy = []
 
         print("epoch: " + str(epoch))
-        for image, label in train_data:
-            img, label = image.to(device), label.to(device)
-            logit = model(img)
-            loss_value = loss(logit, label)
+        for img, label in train_data:
+            # print("image is ", img)
+            # print("label is ", label)
+            # img, label = image.to(device), label.to(device)
 
-            if train_logger is not None:
-                train_logger.add_scalar('loss', loss_value, global_step)
-            accuracy.append((accuracy.detach().cpu().numpy()))
+            logit = model(img)
+            label = label.long()
+            # print("logit is ", logit)
+            # print("logit type is ", type(logit))
+            # print("label is ", label)
+            # print("label type is ", type(label))
+            loss_value = loss(logit, label)
+            print("loss is ", loss_value)
+            # if train_logger is not None:
+            #     train_logger.add_scalar('loss', loss_value, global_step)
+            # accuracy.append((accuracy.detach().cpu().numpy()))
+            print("loss is ", loss_value)
 
             optimizer.zero_grad()
             loss_value.backward()
             optimizer.step()
             global_step += 1
 
-        avg_acc = sum(accuracy) / len(accuracy)
+        # avg_acc = sum(accuracy) / len(accuracy)
 
-        if train_logger:
-            train_logger.add_scalar('accuracy', avg_acc, global_step)
+        # if train_logger:
+        #     train_logger.add_scalar('accuracy', avg_acc, global_step)
 
         model.eval()
 

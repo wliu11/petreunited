@@ -5,14 +5,14 @@ import os
 import torch
 import numpy as np
 from torch.utils.data import Dataset, DataLoader
-from torchvision import transforms, utils
+from torchvision import transforms
 from PIL import Image
 import matplotlib.pyplot as plt
 
 
 class DogDataset(Dataset):
 
-    def __init__(self, train_dir, transform=None):
+    def __init__(self, train_dir, transform):
 
         data = loadmat(train_dir)
 
@@ -20,35 +20,44 @@ class DogDataset(Dataset):
         self.labels = [[label for label in element] for element in data['labels']]
 
         # List of image file names
-        self.images = [[image for image in element] for element in data['file_list']]
+        self.image_names = [[image for image in element] for element in data['file_list']]
 
         # List of annotations files- contains information such as the bounding box
         self.annotations = [[annot for annot in element] for element in data['annotation_list']]
+
         self.transform = transform
 
-        self.data = []
+        self.images = []
 
         for idx in range(self.__len__()):
-            img_name = self.images[idx][0][0]
+            to_tensor = transforms.ToTensor()
+            resize = transforms.Resize(256)
+            random_crop = transforms.RandomCrop(224)
+            img_name = self.image_names[idx][0][0]
             img_path = os.path.join("Images" + "/" + img_name)
             image = Image.open(img_path)
-
+            image.load()
             crop = bounding_box(img_name)
             image = image.crop(crop)
-
-            image.load()
-            label = self.labels[idx][0]
-            self.data.append((image, label))
+            resized = resize(image)
+            cropped = random_crop(resized)
+            self.images.append(to_tensor(cropped))
 
     def __len__(self):
-        return len(self.images)
+        print(len(self.image_names))
+        return len(self.image_names)
 
     # Lazy processing of each image into tensor, along with its label
     def __getitem__(self, idx):
-        data = self.data[idx]
-        if self.transform:
-            data = self.transform(data)
-        return data
+        image = self.images[idx]
+        # print("image is first ", image)
+        label = self.labels[idx][0]
+        # print("label is ", label)
+        # image = self.transform(image)
+        # print("after transform image is a ", type(image))
+        ret = (image, label)
+        # print("type of return is ", type(ret))
+        return ret
 
     def show_image(self, idx):
         image, label = self.__getitem__(idx)
@@ -73,14 +82,20 @@ def bounding_box(img_name):
 
 if __name__ == '__main__':
     dog_dataset = DogDataset(train_dir='lists/train_list.mat')
-    # for i in range(len(dog_dataset)):
-    #     sample = dog_dataset[i]
-
     dog_dataset.show_image(400)
 
 
 def load_data(dataset_path, num_workers=0, batch_size=128):
-    dataset = DogDataset(dataset_path)
+    transformation = {
+        transforms.Compose([
+            transforms.Resize(256),
+            transforms.RandomCrop(224),
+            transforms.RandomHorizontalFlip(),
+            transforms.ToTensor(),
+            transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])])
+    }
+
+    dataset = DogDataset(dataset_path, transform=transformation)
     return DataLoader(dataset, num_workers=num_workers, batch_size=batch_size, shuffle=True, drop_last=False)
 
 
