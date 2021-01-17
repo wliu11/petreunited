@@ -14,26 +14,26 @@ class CNN(torch.nn.Module):
         self.pool = nn.MaxPool2d(kernel_size=2, stride=2)
         self.relu = nn.ReLU(inplace=True)
         self.dropout = nn.Dropout()
-        self.batchnorm = nn.BatchNorm2d(1)
+
+        self.batchnorm1 = nn.BatchNorm2d(32)
+        self.batchnorm2 = nn.BatchNorm2d(64)
+        self.batchnorm3 = nn.BatchNorm2d(128)
 
         self.classifier = nn.Sequential(
-            nn.Linear(in_features=128*12*12, out_features=120),
+            nn.Linear(in_features=128*12*12, out_features=4096),
+            nn.Dropout(),
             nn.ReLU(),
-            # nn.Linear(in_features=4096, out_features=4096),
-            # nn.ReLU(),
-            # nn.Linear(in_features=4096, out_features=120)
+            nn.Linear(in_features=4096, out_features=120)
         )
 
     def forward(self, x):
-        x = self.relu(self.conv1(x))
+        x = self.relu(self.batchnorm1(self.conv1(x)))
         x = self.pool(x)
-        x = self.relu(self.conv2(x))
+        x = self.relu(self.batchnorm2(self.conv2(x)))
         x = self.pool(x)
-        x = self.relu(self.conv3(x))
+        x = self.relu(self.batchnorm3(self.conv3(x)))
         x = self.pool(x)
-        # print("x shape ", x.shape)
         x = x.view(x.size(0), -1)
-
         x = self.classifier(x)
         return x
 

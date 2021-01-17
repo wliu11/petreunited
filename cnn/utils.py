@@ -10,10 +10,11 @@ transformation = {
     'train': transforms.Compose([
         transforms.Resize([100, 100]),
         # transforms.RandomCrop(224),
+        transforms.ColorJitter(0.5, 0.5),
         transforms.RandomHorizontalFlip(),
         transforms.ToTensor()]),
     'test': transforms.Compose([
-        # transforms.Resize([224, 224]),
+        transforms.Resize([100, 100]),
         transforms.ToTensor()])
 }
 

@@ -3,6 +3,7 @@ from torch.autograd import Variable
 
 from models import save_model, CNN
 from utils import load_data
+import numpy as np
 import torch.optim as optim
 import torch.nn.functional as F
 from torchvision import transforms
@@ -12,7 +13,7 @@ from os import path
 import argparse
 
 num_epochs = 35
-lr = 1e-3
+lr = 1e-2
 
 TRAIN_PATH = 'lists/train_list.mat'
 VALIDATION_PATH = 'lists/test_list.mat'
@@ -21,46 +22,6 @@ VALIDATION_PATH = 'lists/test_list.mat'
 def accuracy(outputs, labels):
     outputs_idx = outputs.max(1)[1].type_as(labels)
     return outputs_idx.eq(labels).float().mean()
-
-#
-# # https://github.com/asifdahir/FourShapes_CNN/blob/af2e140c1233d991a4701fcc73cd6898cd3badbe/shapes_cnn.py
-# def fit(epoch, model, dataloader, phase='train'):
-#     print("epoch # ", epoch)
-#     device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
-#
-#     if phase == 'train':
-#         model.train()
-#     if phase == 'validation':
-#         model.eval()
-#
-#     running_loss = 0.0
-#     running_correct = 0
-#
-#     for data, target in dataloader:
-#         data, target = data.to(device), target.to(device)
-#         logit = model(data)
-#         loss_val = loss_fn(logit, target.long())
-#         acc_val = accuracy(logit, target)
-#
-#         optimizer.zero_grad()
-#         loss_val.backward()
-#         optimizer.step()
-#
-#         # if phase == 'train':
-#         #     optimizer.zero_grad()
-#         # output = model(data)
-#         # loss = loss_fn(output, target.long())
-#         # _, preds = torch.max(output.data, dim=1)
-#         # # running_loss += loss.detach()
-#         # running_correct += preds.eq(target.data.view_as(preds)).float().sum()
-#         # # if phase == 'train':
-#         # optimizer.step()
-#
-#     loss = running_loss / len(dataloader.dataset)
-#     accuracy = 100. * running_correct / len(dataloader.dataset)
-#
-#     print(f'{phase} loss is {loss} and {phase} accuracy is {running_correct}/{len(dataloader.dataset)} = {accuracy}')
-#     return loss, accuracy
 
 
 def train():
@@ -82,6 +43,7 @@ def train():
 
     optimizer = torch.optim.SGD(model.parameters(), lr=1e-3, momentum=0.9)
     loss = torch.nn.CrossEntropyLoss()
+    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'max')
 
     train_data = load_data('lists/train_list.mat')
     valid_data = load_data('lists/test_list.mat')
@@ -110,6 +72,8 @@ def train():
 
         if train_logger:
             train_logger.add_scalar('accuracy', avg_acc, global_step)
+            train_logger.add_scalar('lr', optimizer.param_groups[0]['lr'], global_step=global_step)
+            scheduler.step(np.mean(acc_vals))
 
         model.eval()
         acc_vals = []
